@@ -1,0 +1,4 @@
+name = "reST"
+uuid = "56e5230c-73bd-11e9-145f-29838fa039cf"
+authors = ["Apua Juan <apuaj@hpe.com>"]
+version = "0.1.0"
