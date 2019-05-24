@@ -1,5 +1,5 @@
-module reST
+module reStructuredText
 
-greet() = print("Hello World!")
+include("./nodes.jl")
 
 end # module
