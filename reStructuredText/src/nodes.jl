@@ -184,3 +184,127 @@ struct math <: Inline end
 struct inline <: Inline end
 struct problematic <: Inline end
 struct generated <: Inline end
+
+
+# TODO: Do not consider efficiency, you cannot do it right now !!
+
+struct Node{T}
+    attributes
+    children
+end
+
+element_name(type_name) = lowercase(replace(type_name, r"([a-z])([A-Z])" => s"\1_\2"))
+
+"""
+TODO:
+
+- represent node structure in "semi-XML" style
+- represent node attributes sorted by name
+- unit test for representing node structure
+"""
+Base.show(io::IO, n::Node{T}, indent="") where T = begin
+    println(io, indent, "<", element_name("$T"), join(" $k=\"$v\"" for (k, v) in n.attributes), ">")
+    indent = string(indent, "    ")
+    for child in n.children
+        if (child isa String)
+            for line in split(child, "\n")
+                println(io, indent, line)
+            end
+        else
+            show(io, child, indent)
+        end
+    end
+end
+
+# ===
+# POC
+# ===
+
+source_string = """
+   Paragraph with bre-
+   ak line.
+
+   End with *emph*
+
+   **Start** with strong
+
+   How `about`_ ref and `title_ref` ?
+
+   Tailing space does no effect           
+
+   - bullet
+
+     - sub
+     - bullet
+   """
+
+doctree_string = """
+    <document source="test data">
+        <paragraph>
+            Paragraph with bre-
+            ak line.
+        <paragraph>
+            End with 
+            <emphasis>
+                emph
+        <paragraph>
+            <strong>
+                Start
+             with strong
+        <paragraph>
+            How 
+            <reference name="about" refname="about">
+                about
+             ref and 
+            <title_reference>
+                title_ref
+             ?
+        <paragraph>
+            Tailing space does no effect
+        <bullet_list bullet="-">
+            <list_item>
+                <paragraph>
+                    bullet
+                <bullet_list bullet="-">
+                    <list_item>
+                        <paragraph>
+                            sub
+                    <list_item>
+                        <paragraph>
+                            bullet
+    """
+
+doctree = Node{document}([:source => "test data"], [
+    Node{paragraph}([], [
+        "Paragraph with bre-\nak line."
+    ]),
+    Node{paragraph}([], [
+        "End with ",
+        Node{emphasis}([], ["emph"]),
+    ]),
+    Node{paragraph}([], [
+        Node{strong}([], ["Start"]),
+        " with strong",
+    ]),
+    Node{paragraph}([], [
+        "How ",
+        Node{reference}([:name => "about", :refname => "about"], ["about"]),
+        " ref and ",
+        Node{title_reference}([], ["title_ref"]),
+        " ?",
+    ]),
+    Node{paragraph}([], [
+        "Tailing space does no effect",
+    ]),
+    Node{bullet_list}([:bullet => "-"], [
+        Node{list_item}([], [
+            Node{paragraph}([], ["bullet"]),
+            Node{bullet_list}([:bullet => "-"], [
+                Node{list_item}([], [Node{paragraph}([], ["sub"])]),
+                Node{list_item}([], [Node{paragraph}([], ["bullet"])]),
+            ]),
+        ]),
+    ]),
+])
+
+@assert repr(doctree) == doctree_string
