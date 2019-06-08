@@ -90,15 +90,17 @@ tab_width = 8
 
 3. `r"\t" -> " " x tab_width` done by `replace`
 
-4. `str.splitlines` done by `rstrip` and regex rather than `readline(IOBuffer)` trick
+4. `str.splitlines` done by `eachline`
 
 Actually, those ASCII control characters should not appear in reST source today,
 it is unnecessary to care about.
+
+It is lazy version; for eager version, use `pre_parse_lines`.
 """
-pre_parse(s) = split(rstrip(replace(s, "\t" => " " ^ tab_width)), r" *(\n|\r\n)")
+pre_parse(s::AbstractString) = pre_parse(IOBuffer(s))
+pre_parse(s::IO) = (rstrip(replace(line, "\t" => " " ^ tab_width)) for line in eachline(s))
 
-@assert pre_parse(s) == a
+"Eager version of `pre_parse`"
+pre_parse_lines(s) = collect(pre_parse(s))
 
-pre_parse(fp) = (rstrip(replace(line, "\t" => " " ^ tab_width)) for line in eachline(fp))
-
-@assert collect(pre_parse(IOBuffer(s))) == a
+@assert pre_parse_lines(s) == a
