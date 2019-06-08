@@ -98,3 +98,7 @@ it is unnecessary to care about.
 pre_parse(s) = split(rstrip(replace(s, "\t" => " " ^ tab_width)), r" *(\n|\r\n)")
 
 @assert pre_parse(s) == a
+
+pre_parse(fp) = (rstrip(replace(line, "\t" => " " ^ tab_width)) for line in eachline(fp))
+
+@assert collect(pre_parse(IOBuffer(s))) == a
