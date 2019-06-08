@@ -198,7 +198,7 @@ TODO:
 - [ ] represent node attributes sorted by name
 - [v] unit test for representing node structure
 """
-Base.show(io::IO, n::Node{S}, indent="") where T = begin
+Base.show(io::IO, n::Node{S}, indent="") where S = begin
     println(io, indent, "<$S", (" $k=\"$v\"" for (k, v) in n.attributes)..., ">")
     indent *= "    "
     for child in n.children
