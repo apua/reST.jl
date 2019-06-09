@@ -202,7 +202,7 @@ Base.show(io::IO, n::Node{S}, indent="") where S = begin
     println(io, indent, "<$S", (" $k=\"$v\"" for (k, v) in n.attributes)..., ">")
     indent *= "    "
     for child in n.children
-        if (child isa String)
+        if (child isa AbstractString)
             println(io, (indent * line for line in split(child, r"^"m))...)
         else
             Base.show(io, child, indent)
