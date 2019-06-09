@@ -1,5 +1,5 @@
-module reStructuredText
+#module reStructuredText
 
 include("./nodes.jl")
 
-end # module
+#end # module
