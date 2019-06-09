@@ -1,61 +1,46 @@
-text = """
+function parse_rst(iter_lines)
 
-    Abstract
-             
-    H1 Title
-    ========
-
-    Para 1,
-    conti *em* ... **strong!!** and
-    the end of para::
-
-        some literal
-        and literal
-
-    - item 1
-
-      - item 2
-      - item 3
-
-    ~~~~
-
-    And more...
-    """
-
-# TODO: require line number information
-# TODO: support `line isa SubString` which might be efficient
-lines = pre_parse(text)
-
-# use macro to be extensible
-macro next_line(lines)
-    :(r = iterate($lines); r === nothing ? nothing : first(r))
-end
-
-function parse_rst(lines)
-    # This function just initializes parsing
     doctree = Node{:document}([:source => "test data"], [])
+    parent = doctree
     context = ()
-    parse_rst_nested(lines, doctree, context)
-end
 
-# similar with `RSTState.nested_parse`
-function parse_rst_nested(lines, doctree, context)
-    # Iterate line by line.
-    # Extend funtionality in `@next_line`.
-    # May need some post-operation while EOF.
-
-    state = :body
-    while true
-        line = @next_line lines
-        line === nothing && break
-        state, result, context = check_line(state, line, context)
+    # it should read and parse all lines once
+    for (line_number, line) in enumerate(iter_lines)
+        # provide necessary information to the core, and the core return the
+        # information for next operation, for example, appending doctree.
+        #
+        # Finally, the core is a pure function.
+        #
+        # As a high readability markup language, it should be sufficient
+        # to determine the next step with given line and context information.
+        (
+            parent,
+            appending :: Union{Pair, Nothing},
+            context :: Tuple,
+        ) = check_line(
+            doctree = doctree,
+            parent = parent,
+            context = context,
+            line_number = line_number,
+            line = line,
+        )
+        if appending != nothing
+            addto, child = appending
+            push!(addto.children, child)
+        end
+        (line_number < 5) || break
     end
+
+    return doctree
 end
 
-struct State{S<:Symbol} end
-State(x) = State{x}()
 
-function check_line(state::State{:body}, line, contenxt)
+function check_line(context, state, line)
+    @debug "check_line: line -> $line"
+
+# :state:`Body` may happen only when `context` is empty
+if isempty(context)
+    @debug ":state:`Body` (?)"
     if false
         # StateMachine.check_line: state="Body",
         # transitions=['blank', 'indent', 'bullet', 'enumerator', 'field_marker', 'option_marker',
@@ -97,4 +82,21 @@ function check_line(state::State{:body}, line, contenxt)
     else
         # `state.no_match(context, transitions)`
     end
+else
+    @debug ":state:`Text` (?)"
+    if false
+    elseif nothing != (matched = match(r"^$", line))  # "blank" inherits `statemachine.StateWS.ws_patterns`
+        @debug "match: blank"
+        # export context as a paragraph node
+        child = Node{:paragraph}([], collect(context))
+        return parent, parent => child, ()
+    elseif nothing != (matched = match(r"^ +$", line))  # "indent" inherits `statemachine.StateWS.ws_patterns`
+        
+    elseif nothing != (matched = match(r"([!-/:-@[-`{-~])\1* *$", line))  # "underline" is `Body.patterns['line']`
+        
+    elseif nothing != (matched = match(r"", line))  # text
+
+    end
+end
+
 end
