@@ -1,3 +1,5 @@
+module Nodes
+
 # ==============================
 #  Functional Node Base Classes
 # ==============================
@@ -184,6 +186,8 @@ struct math <: Inline end
 struct inline <: Inline end
 struct problematic <: Inline end
 struct generated <: Inline end
+
+end  # module
 
 
 struct Node{S}
