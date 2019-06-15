@@ -198,11 +198,11 @@ TODO:
 - [ ] represent node attributes sorted by name
 - [v] unit test for representing node structure
 """
-Base.show(io::IO, n::Node{S}, indent="") where S = begin
-    println(io, indent, "<$S", (" $k=\"$v\"" for (k, v) in n.attributes)..., ">")
+Base.show(io::IOContext, node::Node{S}, indent=""::AbstractString) where S = begin
+    println(io, indent, "<$S", (" $k=\"$v\"" for (k, v) in node.attributes)..., ">")
     indent *= "    "
-    for child in n.children
-        if (child isa AbstractString)
+    for child in node.children
+        if child isa AbstractString
             println(io, (indent * line for line in split(child, r"^"m))...)
         else
             Base.show(io, child, indent)
