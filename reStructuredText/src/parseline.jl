@@ -12,10 +12,7 @@ eof(state::State{:text}, context) =
     if !isempty(context[:buffer])
         @info "docutils method -> Text.eof"
         @assert length(context[:buffer]) == 1
-        context, paragraph = build_paragraph(context)
-        context[:state] = State(:body)
-        manipulation = context[:doc] => paragraph
-        return context, manipulation
+        return buildparagraph(context)
     end
 
 parseline(state::State{:body}, line, context) =
@@ -60,10 +57,7 @@ parseline(state::State{:text}, line, context) =
     if isempty(line)
         @info "docutils method -> Text.blank"
         @assert length(context[:buffer]) == 1
-        context, paragraph = build_paragraph(context)
-        context[:state] = State(:body)
-        manipulation = context[:doc] => paragraph
-        return context, manipulation
+        return buildparagraph(context)
     elseif @match r"^ +"
         @info "docutils method -> Text.indent"
         @assert length(context[:buffer]) == 1

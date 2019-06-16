@@ -1,10 +1,8 @@
 eof(state::State{:paragraph}, context) =
     begin
-        @info "paragraph.eof -> Body.eof"
+        @info "paragraph.eof"
         @assert length(context[:buffer]) >= 2
-        context, paragraph = build_paragraph(context)
-        context[:state] = State(:body)
-        manipulation = context[:doc] => paragraph
+        context, manipulation = buildparagraph(context)
         context, _ = eof(context)
         return context, manipulation
     end
@@ -13,19 +11,13 @@ parseline(state::State{:paragraph}, line, context) =
     if isempty(line)
         "build a paragraph node"
         @assert length(context[:buffer]) >= 2
-        context, paragraph = build_paragraph(context)
-        context[:state] = State(:body)
-        manipulation = context[:doc] => paragraph
-        return context, manipulation
+        return buildparagraph(context)
     elseif startswith(line, ' ')
         "unexpected indentation ..."
         "  ... build a paragraph node"
         "  and build a system_message node with error message"
         @assert length(context[:buffer]) >= 2
-        context, paragraph = build_paragraph(context)
-        context[:state] = State(:body)
-        manipulation = context[:doc] => paragraph
-        return context, manipulation
+        return buildparagraph(context)
     else
         @assert length(context[:buffer]) >= 2
         "not finished yet"
@@ -33,10 +25,11 @@ parseline(state::State{:paragraph}, line, context) =
         return context, nothing
     end
 
-"Dump buffer to build paragraph node"
-build_paragraph(context) :: Tuple{Context, Node{:paragraph}} =
+buildparagraph(context) =
     begin
-        buffer, context[:buffer] = context[:buffer], []
-        paragraph = Node{:paragraph}([], buffer)
-        return context, paragraph
+        paragraph = Node{:paragraph}([], context[:buffer])
+        manipulation = context[:doc] => paragraph
+        context[:buffer] = []
+        context[:state] = State(:body)
+        return context, manipulation
     end
