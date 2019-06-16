@@ -3,10 +3,10 @@ module inline end
 module section end
 module paragraph
     emptystring = ""  # ·
-    emptyline = "\n"  # · → Body.blank → Body.eof
+    emptyline1 = "\n"  # · → Body.blank → Body.eof
     emptyline2 = "\n\n"  # · → Body.blank → Body.eof
     onestring = "AAA"  # · → Body.text → Text.eof
-    oneline = "AAA\n"  # · → Body.text → Text.eof
+    oneline1 = "AAA\n"  # · → Body.text → Text.eof
     oneline2 = "AAA\n\n"  # · → Body.text → Text.eof
     twostrings = "AAA\nBBB"  # · → Body.text → Text.text → Body.eof
     twolines = "AAA\nBBB\n"  # · → Body.text → Text.text → Body.eof
@@ -64,7 +64,10 @@ module literalblock
         BBB::
     """
     end
-module blockquote end
+module blockquote
+    unexpected1 = "AAA\nBBB\n CCC\n"
+    unexpected2 = "AAA\nBBB\n CCC\n DDD\n"
+end
 module lineblock end
 module doctestblock end
 ####################
