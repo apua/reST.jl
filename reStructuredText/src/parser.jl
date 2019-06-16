@@ -59,19 +59,39 @@ end
 State(x) = State{x}()
 
 const Context = Dict{Symbol, Any}
+const Buffer = Vector{String}
+const Manipulation = Union{Pair, Nothing}
 
 function parse(text:: AbstractString, source="")
     doc = Node{:document}([:source => source], [])
     initial_state = State(:body)
 
-    context = Context(:doc => doc, :state => initial_state, :buffer => [])
+    context = Context(:doc => doc, :state => initial_state, :buffer => Buffer())
     for line in preparse(text)
-        context, manipulation = parseline(line, context)
         @info "line: $line"
-        @info "context: $context"
-        isnothing(manipulation) || @info "manipulation: $manipulation"
+        context, manipulation = parseline(line, context)
+        @debug "context: $context"
+        if !isnothing(manipulation)
+            @debug "manipulation: $manipulation"
+            parent, child = manipulation
+            push!(parent.children, child)
+        end
+    end
+    context, manipulation = eof(context)
+    if !isnothing(manipulation)
+        @debug "manipulation: $manipulation"
+        parent, child = manipulation
+        push!(parent.children, child)
     end
     return doc
 end
 
-include("parse_line.jl")
+eof(context) :: Tuple{Context, Manipulation} = eof(context[:state], context)
+parseline(line, context) :: Tuple{Context, Manipulation} = parseline(context[:state], line, context)
+
+include("parseline.jl")
+include("parseline_paragraph.jl")
+
+include("quickspec.jl")
+
+macro p(text) :(println($text); parse($text)) end
