@@ -17,7 +17,6 @@ parseline(state::State{:paragraph}, line, context) =
         #   ... build a paragraph node
         #   and build a system_message node with error message
         @assert length(context[:buffer]) >= 2
-        # jier
         return buildparagraph(context)
     else
         @assert length(context[:buffer]) >= 2
