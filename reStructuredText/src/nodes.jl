@@ -202,7 +202,7 @@ TODO:
 - [ ] represent node attributes sorted by name
 - [v] unit test for representing node structure
 """
-Base.show(io::IOContext, node::Node{S}, indent=""::AbstractString) where S = begin
+Base.show(io::IO, node::Node{S}, indent=""::AbstractString) where S = begin
     println(io, indent, "<$S", (" $k=\"$v\"" for (k, v) in node.attributes)..., ">")
     indent *= "    "
     for child in node.children
