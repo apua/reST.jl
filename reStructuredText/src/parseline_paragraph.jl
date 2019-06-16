@@ -9,18 +9,19 @@ eof(state::State{:paragraph}, context) =
 
 parseline(state::State{:paragraph}, line, context) =
     if isempty(line)
-        "build a paragraph node"
+        # build a paragraph node
         @assert length(context[:buffer]) >= 2
         return buildparagraph(context)
     elseif startswith(line, ' ')
-        "unexpected indentation ..."
-        "  ... build a paragraph node"
-        "  and build a system_message node with error message"
+        # unexpected indentation ...
+        #   ... build a paragraph node
+        #   and build a system_message node with error message
         @assert length(context[:buffer]) >= 2
+        # jier
         return buildparagraph(context)
     else
         @assert length(context[:buffer]) >= 2
-        "not finished yet"
+        # not finished yet
         push!(context[:buffer], line)
         return context, nothing
     end
