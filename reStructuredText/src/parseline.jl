@@ -74,6 +74,6 @@ parseline(state::State{:text}, line, context) =
         @info "docutils method -> Text.text"
         @assert length(context[:buffer]) == 1
         push!(context[:buffer], line)
-        context[:state] = State(:get_paragraph_block)
+        context[:state] = State(:paragraph)
         return context, nothing
     end

@@ -1,6 +1,6 @@
-eof(state::State{:get_paragraph_block}, context) =
+eof(state::State{:paragraph}, context) =
     begin
-        @info "get_paragraph_block.eof -> Body.eof"
+        @info "paragraph.eof -> Body.eof"
         @assert length(context[:buffer]) >= 2
         context, paragraph = build_paragraph(context)
         context[:state] = State(:body)
@@ -9,7 +9,7 @@ eof(state::State{:get_paragraph_block}, context) =
         return context, manipulation
     end
 
-parseline(state::State{:get_paragraph_block}, line, context) =
+parseline(state::State{:paragraph}, line, context) =
     if isempty(line)
         "build a paragraph node"
         @assert length(context[:buffer]) >= 2
