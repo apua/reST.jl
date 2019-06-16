@@ -1,100 +1,77 @@
-text = """
+####    # TODO: require line number information
+####    # TODO: support `line isa SubString` which might be efficient
+####    #lines = pre_parse(text)
+####
+####    # use macro to be extensible
+####    macro next_line(lines)
+####        :(r = iterate($(esc(lines))); r === nothing ? nothing : first(r))
+####    end
+####
+####    function parse_rst(lines)
+####        # This function just initializes parsing
+####        doctree = Node{:document}([:source => "test data"], [])
+####        context = ()
+####        parse_rst_nested(lines, doctree, context)
+####    end
+####
+####    struct State{Symbol} end
+####    State(x) = State{x}()
+####
+####    include("check_line.jl")
+####
+####    # similar with `RSTState.nested_parse`
+####    function parse_rst_nested(lines, doctree, context)
+####        # Iterate line by line.
+####        # Extend funtionality in `@next_line`.
+####        # May need some post-operation while EOF.
+####
+####        state = State(:body)
+####        while true
+####            line = @next_line lines
+####            line === nothing && break
+####            @show line
+####            state, result, context = check_line(state, line, context)
+####            #@show state, result, context
+####            result !== nothing && push!(doctree.children, result)
+####        end
+####        doctree
+####    end
 
-    Abstract
-             
-    H1 Title
-    ========
+###################
 
-    Para 1,
-    conti *em* ... **strong!!** and
-    the end of para::
+const TAB_WIDTH = 8
 
-        some literal
-        and literal
+@doc raw"""
+1. `r"[\v\f]" -> " "` not support; behavior of matching `\v` is different with in Python
+2. `r"\s+\$" -> ""` done by `split`
+3. `r"\t" -> " " x tab_width` done by `replace`
+4. `str.splitlines` done by `eachline`
 
-    - item 1
+Actually, those ASCII control characters should not appear in reST source today,
+it is unnecessary to care about.
+"""
+preparse(s::AbstractString) = preparse(IOBuffer(s))
+preparse(s::IO) = (rstrip(replace(line, "\t" => " " ^ TAB_WIDTH)) for line in eachline(s))
 
-      - item 2
-      - item 3
-
-    ~~~~
-
-    And more...
-    """
-
-# TODO: require line number information
-# TODO: support `line isa SubString` which might be efficient
-lines = pre_parse(text)
-
-# use macro to be extensible
-macro next_line(lines)
-    :(r = iterate($lines); r === nothing ? nothing : first(r))
+struct State{Symbol}
 end
 
-function parse_rst(lines)
-    # This function just initializes parsing
-    doctree = Node{:document}([:source => "test data"], [])
-    context = ()
-    parse_rst_nested(lines, doctree, context)
-end
-
-# similar with `RSTState.nested_parse`
-function parse_rst_nested(lines, doctree, context)
-    # Iterate line by line.
-    # Extend funtionality in `@next_line`.
-    # May need some post-operation while EOF.
-
-    state = :body
-    while true
-        line = @next_line lines
-        line === nothing && break
-        state, result, context = check_line(state, line, context)
-    end
-end
-
-struct State{S<:Symbol} end
 State(x) = State{x}()
 
-function check_line(state::State{:body}, line, contenxt)
-    if false
-        # StateMachine.check_line: state="Body",
-        # transitions=['blank', 'indent', 'bullet', 'enumerator', 'field_marker', 'option_marker',
-        #              'doctest', 'line_block', 'grid_table_top', 'simple_table_top', 'explicit_markup',
-        #              'anonymous', 'line', 'text'].
-        #
-        # StateMachine.check_line: Matched transition "blank" in state "Body".
-    elseif nothing != (matched = match(r"^$", line))  # "blank" inherits `statemachine.StateWS.ws_patterns`
-        @debug "match: blank"
-        return parent, nothing, context
-    elseif nothing != (matched = match(r"^ +$", line))  # "indent" inherits `statemachine.StateWS.ws_patterns`
+const Context = Dict{Symbol, Any}
 
-    elseif nothing != (matched = match(r"^[-+*•‣⁃]( +|$)", line))  # bullet
+function parse(text:: AbstractString, source="")
+    doc = Node{:document}([:source => source], [])
+    initial_state = State(:body)
 
-    elseif nothing != (matched = match(r"((?P<parens>\(([0-9]+|[a-z]|[A-Z]|[ivxlcdm]+|[IVXLCDM]+|#)\))|(?P<rparen>([0-9]+|[a-z]|[A-Z]|[ivxlcdm]+|[IVXLCDM]+|#)\))|(?P<period>([0-9]+|[a-z]|[A-Z]|[ivxlcdm]+|[IVXLCDM]+|#)\.))( +|$)", line))  # enumerator
-
-    elseif nothing != (matched = match(r":(?![: ])([^:\\]|\\.)*(?<! ):( +|$)", line))  # field_marker
-
-    elseif nothing != (matched = match(r"((-|\+)[a-zA-Z0-9]( ?([a-zA-Z][a-zA-Z0-9_-]*|<[^<>]+>))?|(--|/)[a-zA-Z0-9][a-zA-Z0-9_-]*([ =]([a-zA-Z][a-zA-Z0-9_-]*|<[^<>]+>))?)(, ((-|\+)[a-zA-Z0-9]( ?([a-zA-Z][a-zA-Z0-9_-]*|<[^<>]+>))?|(--|/)[a-zA-Z0-9][a-zA-Z0-9_-]*([ =]([a-zA-Z][a-zA-Z0-9_-]*|<[^<>]+>))?))*(  +| ?$)", line))  # option_marker
-
-    elseif nothing != (matched = match(r">>>( +|$)", line))  # doctest
-
-    elseif nothing != (matched = match(r"\|( +|$)", line))  # line_block
-
-    elseif nothing != (matched = match(r"\+-[-+]+-\+ *$", line))  # grid_table_top
-
-    elseif nothing != (matched = match(r"=+( +=+)+ *$", line))  # simple_table_top
-
-    elseif nothing != (matched = match(r"\.\.( +|$)", line))  # explicit_markup
-
-    elseif nothing != (matched = match(r"__( +|$)", line))  # anonymous
-
-    elseif nothing != (matched = match(r"([!-/:-@[-`{-~])\1* *$", line))  # line
-
-    elseif nothing != (matched = match(r"", line))  # text
-        @debug "match: text"
-        # if could be the first line of a paragraph, or a section title
-        return parent, nothing, (line,)
-    else
-        # `state.no_match(context, transitions)`
+    context = Context(:doc => doc, :state => initial_state, :buffer => [])
+    for line in preparse(text)
+        context, manipulation = parseline(line, context)
+        @info "line: $line"
+        @info "context: $context"
+        isnothing(manipulation) || @info "manipulation: $manipulation"
     end
+    return doc
 end
+
+include("parse_line.jl")
