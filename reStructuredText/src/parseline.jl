@@ -19,12 +19,12 @@ eof(state::State{:text}, context) =
     end
 
 parseline(state::State{:body}, line, context) =
-    if     @match r"^$"
+    if isempty(line)
         @info "docutils method -> Body.blank"
         @assert length(context[:buffer]) == 0
         manipulation = nothing
         return context, manipulation
-    elseif @match r"^ +$"
+    elseif @match r"^ +"
         @info "docutils method -> Body.indent"
     elseif @match r"^[-+*•‣⁃]( +|$)"
         @info "docutils method -> Body.bullet"
@@ -57,14 +57,14 @@ parseline(state::State{:body}, line, context) =
     end
 
 parseline(state::State{:text}, line, context) =
-    if     @match r"^$"
+    if isempty(line)
         @info "docutils method -> Text.blank"
         @assert length(context[:buffer]) == 1
         context, paragraph = build_paragraph(context)
         context[:state] = State(:body)
         manipulation = context[:doc] => paragraph
         return context, manipulation
-    elseif @match r"^ +$"
+    elseif @match r"^ +"
         @info "docutils method -> Text.indent"
         @assert length(context[:buffer]) == 1
     elseif @match r"^([!-/:-@[-`{-~])\1* *$"
