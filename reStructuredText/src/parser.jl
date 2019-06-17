@@ -77,6 +77,9 @@ function parse(text:: AbstractString, source="")
             push!(parent.children, child)
         end
     end
+
+    # TODO: manipulation should be Tuple or Array
+
     context, manipulation = eof(context)
     if !isnothing(manipulation)
         @debug "manipulation: $manipulation"

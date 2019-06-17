@@ -27,55 +27,33 @@ module literalblock
     onestring = "AAA::"  # · → Body.text → Text.eof
     oneline = "AAA\n::"  # · → Body.text → Text.underline × Text.text → Body.eof
     twostrings = "AAA\nBBB::"  # · → Body.text → Text.text → Body.eof
-    twoslines = "AAA\nBBB\n::"  # · → Body.text → Text.text → Body.eof
+    twolines = "AAA\nBBB\n::"  # · → Body.text → Text.text → Body.eof
 
     onelinecontent = "AAA::\n\n  BBB"  # · → Body.text → Text.blank → Body.eof
     twolinescontent = "AAA\nBBB::\n\n  CCC"  # · → Body.text → Text.text→ Body.eof
 
     """
-    case 1::
+    AAA\nBBB\n
+    AAA\nBBB\n\n
+        ->   context = (AAA, BBB) ; line = ""     => empty line, i.e. State(:Body)
 
-        AAA
-        BBB    ->   context = (AAA, BBB) ; line = ""     => empty line, i.e. State(:Body)
-        ___
+    AAA\n::\n
+    AAA\n::\n\n
+        ->   context = (AAA,) ; line = ""         => literal block
 
-    case 2::
+    AAA\nBBB\n CCC\n
+        ->   context = (AAA, BBB) ; line = " CCC" => unexpected indent and quote block
 
-        AAA
-        ::     ->   context = (AAA,) ; line = ""         => literal block
-        ___
+    AAA\nBBB::\n
+        ->   context = (AAA, BBB:) ; line = ""    => literal block
 
-    case 3::
+    AAA\nBBB   ::\n
+        ->   context = (AAA, BBB) ; line = ""     => literal block
 
-        AAA
-        BBB    ->   context = (AAA, BBB) ; line = " CCC" => unexpected indent and quote block
-         CCC
-
-    case 4::
-
-        AAA
-        BBB::  ->   context = (AAA, BBB:) ; line = ""    => literal block
-        ___
-
-    case 5::
-
-        AAA
-        BBB :: ->   context = (AAA, BBB) ; line = ""     => literal block
-        ___
-
-    case 6::  it is never happened...
-
-        ::     ->   context = () ; line = ""             => literal block
-        ___
-
-    case 7::  without empty line, it is handled by main loop
-
-        AAA
-        BBB::
     """
     end
 module blockquote
-    unexpected1 = "AAA\nBBB\n CCC\n"
+    unexpected1 = "AAA\nBBB\n CCC\n"  # · → Body.text → Text.text → Body.indent → Body.text → Text.eof
     unexpected2 = "AAA\nBBB\n CCC\n DDD\n"
 end
 module lineblock end
