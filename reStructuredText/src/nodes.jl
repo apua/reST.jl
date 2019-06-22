@@ -202,17 +202,18 @@ TODO:
 - [ ] represent node attributes sorted by name
 - [v] unit test for representing node structure
 """
-Base.show(io::IO, node::Node{S}, indent=""::AbstractString) where S = begin
-    println(io, indent, "<$S", (" $k=\"$v\"" for (k, v) in node.attributes)..., ">")
-    indent *= "    "
-    for child in node.children
-        if child isa AbstractString
-            println(io, (indent * line for line in split(child, r"^"m))...)
-        else
-            Base.show(io, child, indent)
+Base.show(io::IO, node::Node{S}, indent=""::AbstractString) where S =
+    begin
+        println(io, indent, "<$S", (" $k=\"$v\"" for (k, v) in node.attributes)..., ">")
+        indent *= "    "
+        for child in node.children
+            if child isa AbstractString
+                println(io, (indent * line for line in split(child, r"^"m))...)
+            else
+                Base.show(io, child, indent)
+            end
         end
     end
-end
 
 
 @assert Node{:document}(1,[]) != Node{:document}(1,[])
