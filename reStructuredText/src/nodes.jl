@@ -213,3 +213,11 @@ Base.show(io::IO, node::Node{S}, indent=""::AbstractString) where S = begin
         end
     end
 end
+
+
+@assert Node{:document}(1,[]) != Node{:document}(1,[])
+
+Base.:(==)(ns::Node{S}, nt::Node{T}) where S where T =
+    S == T && ns.attributes == nt.attributes && ns.children == nt.children
+
+@assert Node{:document}(1,[]) == Node{:document}(1,[])
