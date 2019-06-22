@@ -1,3 +1,56 @@
+function test_paragraph()
+    node(symbol, xs::Vector, ys...) = Node{symbol}([xs...], [ys...])
+    node(symbol, ys...) = Node{symbol}([], [ys...])
+    doc(ys...) = node(:document, [:source=>""], ys...)
+
+    test_cases = [
+        :emptystring => ( # · → Body.eof
+            "",
+            doc(),
+            ),
+        :emptyline1 => ( # · → Body.blank → Body.eof
+            "\n",
+            doc(),
+            ),
+        :emptyline2 => ( # · → Body.blank → Body.eof
+            "\n\n",
+            doc(),
+            ),
+        :onestring => ( # · → Body.text → Text.eof
+            "AAA",
+            doc(node(:paragraph, "AAA")),
+            ),
+        :oneline1 => ( # · → Body.text → Text.eof
+            "AAA\n",
+            doc(node(:paragraph, "AAA")),
+            ),
+        :oneline2 => ( # · → Body.text → Text.blank → Body.eof
+            "AAA\n\n",
+            doc(node(:paragraph, "AAA")),
+            ),
+        :twostrings => ( # · → Body.text → Text.text → Body.eof
+            "AAA\nBBB",
+            doc(node(:paragraph, "AAA", "BBB")),
+            ),
+        :twolines => ( # · → Body.text → Text.text → Body.eof
+            "AAA\nBBB\n",
+            doc(node(:paragraph, "AAA", "BBB")),
+            ),
+        :threelines => ( # · → Body.text → Text.text → Body.eof
+            "AAA\nBBB\nCCC\n",
+            doc(node(:paragraph, "AAA", "BBB", "CCC")),
+            ),
+        :twoblocks => ( # · → Body.text → Text.blank → Body.text → Text.text → Body.eof
+            "AAA\n\nBBB\nCCC\n\n",
+            doc(node(:paragraph, "AAA"), node(:paragraph, "BBB", "CCC")),
+            ),
+        ]
+
+    for (name, (string, tree)) in test_cases
+        @assert parse(string) == tree name
+    end
+end
+
 eof(state::State{:paragraph}, context) =
     begin
         @info "paragraph.eof"
