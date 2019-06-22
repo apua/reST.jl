@@ -22,7 +22,7 @@ const Buffer = Vector{String}
 const Manipulation = Union{Pair, Nothing}
 
 function parse(text:: AbstractString, source="")
-    doc = Node{:document}([:source => source], [])
+    doc = Node{:document}([], [])
     initial_state = State(:body)
 
     context = Context(:doc => doc, :state => initial_state, :buffer => Buffer())

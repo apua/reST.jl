@@ -1,7 +1,7 @@
 function test_paragraph()
     node(symbol, xs::Vector, ys...) = Node{symbol}([xs...], [ys...])
     node(symbol, ys...) = Node{symbol}([], [ys...])
-    doc(ys...) = node(:document, [:source=>""], ys...)
+    doc(ys...) = node(:document, ys...)
 
     test_cases = [
         :emptystring => ( # · → Body.eof
