@@ -5,22 +5,24 @@ end
 eof(state::State{:body}, context) =
     begin
         @info "docutils method -> Body.eof"
-        return context, nothing
+        return context, ()
     end
 
 eof(state::State{:text}, context) =
     if !isempty(context[:buffer])
         @info "docutils method -> Text.eof"
         @assert length(context[:buffer]) == 1
-        return buildparagraph(context)
+        context, paragraph = buildparagraph(context)
+        return context, (paragraph,)
+    else
+        @info "don't know the case...."
     end
 
 parseline(state::State{:body}, line, context) =
     if isempty(line)
         @info "docutils method -> Body.blank"
         @assert length(context[:buffer]) == 0
-        manipulation = nothing
-        return context, manipulation
+        return context, ()
     elseif startswith(line, ' ')
         @info "docutils method -> Body.indent"
     elseif @match r"^[-+*•‣⁃]( +|$)"
@@ -49,15 +51,15 @@ parseline(state::State{:body}, line, context) =
         @info "docutils method -> Body.text"
         context[:state] = State(:text)
         push!(context[:buffer], line)
-        manipulation = nothing
-        return context, manipulation
+        return context, ()
     end
 
 parseline(state::State{:text}, line, context) =
     if isempty(line)
         @info "docutils method -> Text.blank"
         @assert length(context[:buffer]) == 1
-        return buildparagraph(context)
+        context, paragraph = buildparagraph(context)
+        return context, (paragraph,)
     elseif startswith(line, ' ')
         @info "docutils method -> Text.indent"
         @assert length(context[:buffer]) == 1
@@ -69,5 +71,5 @@ parseline(state::State{:text}, line, context) =
         @assert length(context[:buffer]) == 1
         push!(context[:buffer], line)
         context[:state] = State(:paragraph)
-        return context, nothing
+        return context, ()
     end

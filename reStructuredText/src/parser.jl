@@ -19,37 +19,34 @@ State(x) = State{x}()
 
 const Context = Dict{Symbol, Any}
 const Buffer = Vector{String}
-const Manipulation = Union{Pair, Nothing}
+#const Manipulation = Union{Pair, Nothing}
+const Children = Tuple
 
 function parse(text:: AbstractString, source="")
-    doc = Node{:document}([], [])
+    #doc = Node{:document}([], [])
+    doc_children = []
     initial_state = State(:body)
 
-    context = Context(:doc => doc, :state => initial_state, :buffer => Buffer())
+    context = Context(:state => initial_state, :buffer => Buffer())
     for line in preparse(text)
         @info "line: $line"
-        context, manipulation = parseline(line, context)
+        context, children = parseline(line, context)
         @debug "context: $context"
-        if !isnothing(manipulation)
-            @debug "manipulation: $manipulation"
-            parent, child = manipulation
-            push!(parent.children, child)
-        end
+        isempty(children) || push!(doc_children, children...)
     end
 
     # TODO: manipulation should be Tuple or Array
 
-    context, manipulation = eof(context)
-    if !isnothing(manipulation)
-        @debug "manipulation: $manipulation"
-        parent, child = manipulation
-        push!(parent.children, child)
-    end
-    return doc
+    context, children = eof(context)
+    @debug "context: $context"
+    isempty(children) || push!(doc_children, children...)
+    return Node{:document}([], doc_children)
 end
 
-eof(context) :: Tuple{Context, Manipulation} = eof(context[:state], context)
-parseline(line, context) :: Tuple{Context, Manipulation} = parseline(context[:state], line, context)
+#eof(context) :: Tuple{Context, Manipulation} = eof(context[:state], context)
+#parseline(line, context) :: Tuple{Context, Manipulation} = parseline(context[:state], line, context)
+eof(context) :: Tuple{Context, Children} = eof(context[:state], context)
+parseline(line, context) :: Tuple{Context, Children} = parseline(context[:state], line, context)
 
 include("parseline.jl")
 include("parseline_paragraph.jl")

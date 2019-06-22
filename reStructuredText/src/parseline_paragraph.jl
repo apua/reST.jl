@@ -55,9 +55,10 @@ eof(state::State{:paragraph}, context) =
     begin
         @info "paragraph.eof"
         @assert length(context[:buffer]) >= 2
-        context, manipulation = buildparagraph(context)
-        context, _ = eof(context)
-        return context, manipulation
+        context, paragraph = buildparagraph(context)
+        # need to note which the state could be
+        context, c = eof(context)
+        return context, (paragraph, c...)
     end
 
 parseline(state::State{:paragraph}, line, context) =
@@ -65,7 +66,8 @@ parseline(state::State{:paragraph}, line, context) =
         @debug "paragraph -- line empty"
         # build a paragraph node
         @assert length(context[:buffer]) >= 2
-        return buildparagraph(context)
+        context, paragraph = buildparagraph(context)
+        return context, (paragraph,)
 
     elseif startswith(line, ' ')
         @debug "paragraph -- line indent"
@@ -73,7 +75,7 @@ parseline(state::State{:paragraph}, line, context) =
 
         # build a paragraph node
         @assert length(context[:buffer]) >= 2
-        context, manipulation_1 = buildparagraph(context)
+        context, paragraph = buildparagraph(context)
 
         # build a system_message node with error message
         ()
@@ -81,14 +83,14 @@ parseline(state::State{:paragraph}, line, context) =
         # case 1: Body.indent → ... blockquote
         # case 2: literalblock
         context, manipulation_2 = parseline(line, context)
-        return context, (manipulation_1, manipulation_2)
+        return context, (paragraph, manipulation_2)
 
     else
         @debug "paragraph -- line reading"
         @assert length(context[:buffer]) >= 2
         # not finished yet
         push!(context[:buffer], line)
-        return context, nothing
+        return context, ()
     end
 
 function buildparagraph(context)
@@ -118,6 +120,5 @@ function buildparagraph(context)
     paragraph = Node{:paragraph}([], buffer)
     context[:buffer] = []
     context[:state] = next_state
-    manipulation = context[:doc] => paragraph
-    return context, manipulation
+    return context, paragraph
 end
