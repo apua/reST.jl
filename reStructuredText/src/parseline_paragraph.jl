@@ -63,18 +63,13 @@ eof(state::State{:paragraph}, context) =
 
 parseline(state::State{:paragraph}, line, context) =
     if isempty(line)
-        @debug "paragraph -- line empty"
-        # build a paragraph node
+        @debug "paragraph -- empty"
         @assert length(context[:buffer]) >= 2
         nextliteral, paragraph = buildparagraph(context[:buffer])
         context[:buffer], context[:state] = [], State(nextliteral ? :literalblock : :body)
         return context, (paragraph,)
-
     elseif startswith(line, ' ')
-        @debug "paragraph -- line indent"
-        # unexpected indentation ...
-
-        # build a paragraph node
+        @debug "paragraph -- indent"
         @assert length(context[:buffer]) >= 2
         nextliteral, paragraph = buildparagraph(context[:buffer])
         context[:buffer], context[:state] = [], State(nextliteral ? :literalblock : :body)
@@ -82,9 +77,8 @@ parseline(state::State{:paragraph}, line, context) =
         context, children = parseline(line, context)
         return context, (paragraph, error_indent, children...)
     else
-        @debug "paragraph -- line reading"
+        @debug "paragraph -- readline"
         @assert length(context[:buffer]) >= 2
-        # not finished yet
         push!(context[:buffer], line)
         return context, ()
     end
