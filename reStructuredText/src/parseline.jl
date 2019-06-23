@@ -13,7 +13,8 @@ eof(state::State{:text}, context) =
         @info "docutils method -> Text.eof"
         @assert length(context[:buffer]) == 1
         nextliteral, paragraph = buildparagraph(context[:buffer])
-        context[:buffer], context[:state] = [], State(nextliteral ? :literalblock : :body)
+        empty!(context[:buffer])
+        context[:state] = State(nextliteral ? :literalblock : :body)
         return context, (paragraph,)
     else
         @info "don't know the case...."
@@ -60,7 +61,8 @@ parseline(state::State{:text}, line, context) =
         @info "docutils method -> Text.blank"
         @assert length(context[:buffer]) == 1
         nextliteral, paragraph = buildparagraph(context[:buffer])
-        context[:buffer], context[:state] = [], State(nextliteral ? :literalblock : :body)
+        empty!(context[:buffer])
+        context[:state] = State(nextliteral ? :literalblock : :body)
         return context, (paragraph,)
     elseif startswith(line, ' ')
         @info "docutils method -> Text.indent"

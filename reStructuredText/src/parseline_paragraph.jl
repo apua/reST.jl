@@ -56,7 +56,8 @@ eof(state::State{:paragraph}, context) =
         @info "paragraph.eof"
         @assert length(context[:buffer]) >= 2
         nextliteral, paragraph = buildparagraph(context[:buffer])
-        context[:buffer], context[:state] = [], State(nextliteral ? :literalblock : :body)
+        empty!(context[:buffer])
+        context[:state] = State(nextliteral ? :literalblock : :body)
         context, children = eof(context)
         return context, (paragraph, children...)
     end
@@ -66,13 +67,15 @@ parseline(state::State{:paragraph}, line, context) =
         @debug "paragraph -- empty"
         @assert length(context[:buffer]) >= 2
         nextliteral, paragraph = buildparagraph(context[:buffer])
-        context[:buffer], context[:state] = [], State(nextliteral ? :literalblock : :body)
+        empty!(context[:buffer])
+        context[:state] = State(nextliteral ? :literalblock : :body)
         return context, (paragraph,)
     elseif startswith(line, ' ')
         @debug "paragraph -- indent"
         @assert length(context[:buffer]) >= 2
         nextliteral, paragraph = buildparagraph(context[:buffer])
-        context[:buffer], context[:state] = [], State(nextliteral ? :literalblock : :body)
+        empty!(context[:buffer])
+        context[:state] = State(nextliteral ? :literalblock : :body)
         error_indent = Node{:system_message}([:type=>"ERROR"],[Node{:paragraph}([],["Unexpected indentation."])])
         context, children = parseline(line, context)
         return context, (paragraph, error_indent, children...)
