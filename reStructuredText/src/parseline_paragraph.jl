@@ -55,10 +55,10 @@ eof(state::State{:paragraph}, context) =
     begin
         @info "paragraph.eof"
         @assert length(context[:buffer]) >= 2
-        context, paragraph = buildparagraph(context)
-        # need to note which the state could be
-        context, c = eof(context)
-        return context, (paragraph, c...)
+        nextliteral, paragraph = buildparagraph(context[:buffer])
+        context[:buffer], context[:state] = [], State(nextliteral ? :literalblock : :body)
+        context, children = eof(context)
+        return context, (paragraph, children...)
     end
 
 parseline(state::State{:paragraph}, line, context) =
@@ -66,7 +66,8 @@ parseline(state::State{:paragraph}, line, context) =
         @debug "paragraph -- line empty"
         # build a paragraph node
         @assert length(context[:buffer]) >= 2
-        context, paragraph = buildparagraph(context)
+        nextliteral, paragraph = buildparagraph(context[:buffer])
+        context[:buffer], context[:state] = [], State(nextliteral ? :literalblock : :body)
         return context, (paragraph,)
 
     elseif startswith(line, ' ')
@@ -75,16 +76,11 @@ parseline(state::State{:paragraph}, line, context) =
 
         # build a paragraph node
         @assert length(context[:buffer]) >= 2
-        context, paragraph = buildparagraph(context)
-
-        # build a system_message node with error message
-        ()
-
-        # case 1: Body.indent → ... blockquote
-        # case 2: literalblock
-        context, manipulation_2 = parseline(line, context)
-        return context, (paragraph, manipulation_2)
-
+        nextliteral, paragraph = buildparagraph(context[:buffer])
+        context[:buffer], context[:state] = [], State(nextliteral ? :literalblock : :body)
+        error_indent = Node{:system_message}([:type=>"ERROR"],[Node{:paragraph}([],["Unexpected indentation."])])
+        context, children = parseline(line, context)
+        return context, (paragraph, error_indent, children...)
     else
         @debug "paragraph -- line reading"
         @assert length(context[:buffer]) >= 2
@@ -93,32 +89,20 @@ parseline(state::State{:paragraph}, line, context) =
         return context, ()
     end
 
-function buildparagraph(context)
-    # case 1: paragraph → Body.blank (due to `isempty(line)`)
-    # case 2: paragraph → literalblock (due to double colons) → Body.*
-
-    # question: the next state of literalblock is always Body?
-    lastline = last(context[:buffer])
+function buildparagraph(buffer)
+    lastline = buffer[end]
+    Paragraph(xs...) = Node{:paragraph}([], [xs...])
     if lastline == "::"
-        @debug "next literalblock? -- double colons line"
-        buffer = context[:buffer][1:end-1]
-        next_state = State(:literalblock)
+        @debug "buildparagraph -- double colons line"
+        nextliteral, paragraph = true, Paragraph(buffer[1:end-1]...)
     elseif endswith(lastline, " ::")
-        @debug "next literalblock? -- double colons tailing"
-        buffer = [context[:buffer][1:end-1]..., rstrip(lastline)]
-        next_state = State(:literalblock)
+        @debug "buildparagraph -- double colons tailing w/ space"
+        nextliteral, paragraph = true, Paragraph(buffer[1:end-1]..., rstrip(lastline[1:end-2]))
     elseif !isnothing(match(r"(?<!\\)(\\\\)*::$", lastline))
-        @debug "next literalblock? -- double colons tailing without space"
-        buffer = [context[:buffer][1:end-1]..., lastline[1:end-1]]
-        next_state = State(:literalblock)
+        @debug "buildparagraph -- double colons tailing w/o space"
+        nextliteral, paragraph = true, Paragraph(buffer[1:end-1]..., lastline[1:end-1])
     else
-        @debug "next literalblock? -- not"
-        buffer = context[:buffer]
-        next_state = State(:body)
+        @debug "buildparagraph -- no double colons"
+        nextliteral, paragraph = false, Paragraph(buffer...)
     end
-
-    paragraph = Node{:paragraph}([], buffer)
-    context[:buffer] = []
-    context[:state] = next_state
-    return context, paragraph
 end
