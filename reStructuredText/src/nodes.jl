@@ -195,6 +195,14 @@ struct Node{S}
     children
 end
 
+Node(symbol::Symbol, xs...) =
+    begin
+        attributes, children = [], []
+        for x in xs push!(x isa Pair ? attributes : children, x) end
+        @show attributes, children
+        Node{symbol}(attributes, children)
+    end
+
 """
 TODO:
 
