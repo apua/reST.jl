@@ -51,6 +51,24 @@ function test_paragraph()
     end
 end
 
+function test_literalblock()
+    Doc(xs...) = Node(:document, xs...)
+    Paragraph(xs::String...) = Node(:paragraph, xs...)
+    LiteralBlock(xs::String...) = Node(:literal_block, :(xml:space)=>"preserve", xs...)
+    ErrorIndent() = Node(:system_message, :type=>"ERROR", Paragraph("Unexpected indentation."))
+    warn_unindent(s) = Node(:system_message, :type=>"WARNING", Node(:paragraph, "$s ends without a blank line; unexpected unindent."))
+    warn_literal_notfound() = Node(:system_message, :type=>"WARNING", Node(:paragraph, "Literal block expected; none found."))
+
+    @assert parse("AAA\nBBB::\nCCC") == Doc(Paragraph("AAA", "BBB::", "CCC"))
+
+    @assert parse("AAA\nBBB::\n\n CCC") == Doc(Paragraph("AAA", "BBB:"), LiteralBlock("CCC"))
+    @assert parse("AAA\nBBB::\n CCC") == Doc(Paragraph("AAA", "BBB:"), ErrorIndent(), LiteralBlock("CCC"))
+
+    @assert parse("AAA\nBBB::\n\n CCC\n\nDDD") == Doc(Paragraph("AAA", "BBB:"), LiteralBlock("CCC"), Paragraph("DDD"))
+    @assert parse("AAA\nBBB::\n\n CCC\nDDD") == Doc(Paragraph("AAA", "BBB:"), LiteralBlock("CCC"), warn_unindent("Literal block"), Paragraph("DDD"))
+    @assert parse("AAA\nBBB::\n CCC\n\nDDD") == Doc(Paragraph("AAA", "BBB:"), ErrorIndent(), LiteralBlock("CCC"), Paragraph("DDD"))
+end
+
 eof(state::State{:paragraph}, context) =
     begin
         @info "paragraph.eof"
@@ -60,6 +78,17 @@ eof(state::State{:paragraph}, context) =
         context[:state] = State(nextliteral ? :literalblock : :body)
         context, children = eof(context)
         return context, (paragraph, children...)
+    end
+
+eof(state::State{:literalblock}, context) =
+    begin
+        @info "literalblock.eof"
+        @assert length(context[:buffer]) > 0
+        literalblock = buildliteralblock(context[:buffer])
+        empty!(context[:buffer])
+        context[:state] = State(:body)
+        context, children = eof(context)
+        return context, (literalblock, children...)
     end
 
 parseline(state::State{:paragraph}, line, context) =
@@ -86,6 +115,32 @@ parseline(state::State{:paragraph}, line, context) =
         return context, ()
     end
 
+parseline(state::State{:literalblock}, line, context) =
+    if isempty(line) || startswith(line, ' ')
+        @debug "literalblock -- readline"
+        push!(context[:buffer], line)
+        return context, ()
+    else
+        @debug "literalblock -- unindented found"
+        if all(isempty, context[:buffer])
+            try_quotedliteralblock
+        else
+            @assert length(context[:buffer]) > 0
+            literalblock = buildliteralblock(context[:buffer])
+            blanklinefinish = isempty(context[:buffer][end])
+            warn_unindent(s) = Node(:system_message, :type=>"WARNING",
+                                    Node(:paragraph, "$s ends without a blank line; unexpected unindent."))
+            empty!(context[:buffer])
+            context[:state] = State(:body)
+            context, children = parseline(line, context)
+            if blanklinefinish
+                return context, (literalblock, children...)
+            else
+                return context, (literalblock, warn_unindent("Literal block"), children...)
+            end
+        end
+    end
+
 function buildparagraph(buffer)
     lastline = buffer[end]
     Paragraph(xs...) = Node{:paragraph}([], [xs...])
@@ -102,4 +157,13 @@ function buildparagraph(buffer)
         @debug "buildparagraph -- no double colons"
         nextliteral, paragraph = false, Paragraph(buffer...)
     end
+end
+
+function buildliteralblock(buffer)
+    leadingspacelength(line) = length(line) - length(lstrip(line))
+    indentlength = min(filter(i -> i > 0, map(leadingspacelength, buffer))...)
+    isnonempty(line) = ! isempty(line)
+    first, last = findfirst(isnonempty, buffer), findlast(isnonempty, buffer)
+    LiteralBlock(xs::String...) = Node(:literal_block, :(xml:space)=>"preserve", xs...)
+    LiteralBlock((line[indentlength+1:end] for line in buffer[first:last])...)
 end
