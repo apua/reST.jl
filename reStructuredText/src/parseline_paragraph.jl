@@ -69,6 +69,40 @@ function test_literalblock()
     @assert parse("AAA\nBBB::\n CCC\n\nDDD") == Doc(Paragraph("AAA", "BBB:"), ErrorIndent(), LiteralBlock("CCC"), Paragraph("DDD"))
 end
 
+function test_literalblock_corner()
+    Doc(xs...) = Node(:document, xs...)
+    Paragraph(xs::String...) = Node(:paragraph, xs...)
+    LiteralBlock(xs::String...) = Node(:literal_block, :(xml:space)=>"preserve", xs...)
+
+    # body → line → (correct)
+    @assert parse("::\n\n AAA") == Doc(LiteralBlock("AAA"))
+    @assert parse("::\n\nAAA") == Doc(warn_literal_notfound(), Paragraph("AAA"))
+    @assert parse("AAA:\n\n::\n\n  BBB") == Doc(Paragraph("AAA:"), LiteralBlock("BBB"))
+
+    # text
+    @assert parse("AAA: ::\n\n  BBB") == Doc(Paragraph("AAA:"), LiteralBlock("BBB"))
+    @assert parse("AAA::\n\n  BBB") == Doc(Paragraph("AAA:"), LiteralBlock("BBB"))
+
+    # definition list
+    @assert parse("::\n AAA") == "complex"
+end
+
+function test_quotedliteralblock()
+    Doc(xs...) = Node(:document, xs...)
+    Paragraph(xs::String...) = Node(:paragraph, xs...)
+    LiteralBlock(xs::String...) = Node(:literal_block, :(xml:space)=>"preserve", xs...)
+    BlockQuote(xs::String...) = Node(:block_quote, xs...)
+
+    error_indent() = Node(:system_message, :type=>"ERROR", Node(:paragraph, "Unexpected indentation."))
+    error_quote() = Node(:system_message, :type=>"ERROR", Node(:paragraph, "Inconsistent literal block quoting."))
+
+    @assert parse("AAA\nBBB::\n\n>111") == Doc(Paragraph("AAA", "BBB:"), LiteralBlock(">111"))
+    @assert parse("AAA\nBBB::\n\n>111\n\nCCC") == Doc(Paragraph("AAA", "BBB:"), LiteralBlock(">111"), Paragraph("CCC"))
+    @assert parse("AAA\nBBB::\n\n>111\n>222\n\nCCC") == Doc(Paragraph("AAA", "BBB:"), LiteralBlock(">111", ">222"), Paragraph("CCC"))
+    @assert parse("AAA\nBBB::\n\n>111\n<222\n\nCCC") == Doc(Paragraph("AAA", "BBB:"), LiteralBlock(">111"), error_quote(), Paragraph("<222"), Paragraph("CCC"))
+    @assert parse("AAA\nBBB::\n\n>111\n >222\n\nCCC") == Doc(Paragraph("AAA", "BBB:"), LiteralBlock(">111"), error_indent(), BlockQuote(Paragraph(">222")), Paragraph("CCC"))
+end
+
 eof(state::State{:paragraph}, context) =
     begin
         @info "paragraph.eof"
@@ -85,6 +119,17 @@ eof(state::State{:literalblock}, context) =
         @info "literalblock.eof"
         @assert length(context[:buffer]) > 0
         literalblock = buildliteralblock(context[:buffer])
+        empty!(context[:buffer])
+        context[:state] = State(:body)
+        context, children = eof(context)
+        return context, (literalblock, children...)
+    end
+
+eof(state::State{:quotedliteralblock}, context) =
+    begin
+        @info "quotedliteralblock.eof"
+        @assert length(context[:buffer]) > 0
+        literalblock = buildquotedliteralblock(context[:buffer])
         empty!(context[:buffer])
         context[:state] = State(:body)
         context, children = eof(context)
@@ -123,7 +168,9 @@ parseline(state::State{:literalblock}, line, context) =
     else
         @info "literalblock -- unindented found"
         if all(isempty, context[:buffer])
-            try_quotedliteralblock
+            empty!(context[:buffer])
+            context[:state] = State(:quotedliteralblock)
+            return parseline(line, context)
         else
             @assert length(context[:buffer]) > 0
             literalblock = buildliteralblock(context[:buffer])
@@ -139,6 +186,40 @@ parseline(state::State{:literalblock}, line, context) =
                 return context, (literalblock, warn_unindent("Literal block"), children...)
             end
         end
+    end
+
+parseline(state::State{:quotedliteralblock}, line, context) =
+    if isempty(line)
+        @info "QuotedLiteralBlock -- blank"
+        @assert length(context[:buffer]) > 0
+        literalblock = buildquotedliteralblock(context[:buffer])
+        empty!(context[:buffer])
+        context[:state] = State(:body)
+        return context, (literalblock,)
+    elseif ! (:quote in keys(context))
+        @info "QuotedLiteralBlock -- initial_quoted"
+        context[:quote] = line[1]
+        push!(context[:buffer], line)
+        return context, ()
+    elseif startswith(line, context[:quote])
+        @info "QuotedLiteralBlock -- quote"
+        push!(context[:buffer], line)
+        return context, ()
+    else
+        if startswith(line, ' ')
+            @info "QuotedLiteralBlock -- indent"
+            error_indent() = Node(:system_message, :type=>"ERROR", Node(:paragraph, "Unexpected indentation."))
+            error = error_indent()
+        else
+            @info "QuotedLiteralBlock -- text"
+            error_quote() = Node(:system_message, :type=>"ERROR", Node(:paragraph, "Inconsistent literal block quoting."))
+            error = error_quote()
+        end
+        literalblock = buildquotedliteralblock(context[:buffer])
+        empty!(context[:buffer])
+        context[:state] = State(:body)
+        context, children = parseline(line, context)
+        return context, (literalblock, error, children...)
     end
 
 function buildparagraph(buffer)
@@ -166,4 +247,9 @@ function buildliteralblock(buffer)
     first, last = findfirst(isnonempty, buffer), findlast(isnonempty, buffer)
     LiteralBlock(xs::String...) = Node(:literal_block, :(xml:space)=>"preserve", xs...)
     LiteralBlock((line[indentlength+1:end] for line in buffer[first:last])...)
+end
+
+function buildquotedliteralblock(buffer)
+    LiteralBlock(xs::String...) = Node(:literal_block, :(xml:space)=>"preserve", xs...)
+    LiteralBlock(buffer...)
 end
