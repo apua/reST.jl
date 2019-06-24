@@ -15,11 +15,13 @@ Node(symbol::Symbol, xs...) =
 # TODO: node attributes needs to be unique
 Base.show(io::IO, node::Node{S}, indent=""::AbstractString) where S =
     begin
-        println(io, indent, "<$S", (" $k=\"$v\"" for (k, v) in node.attributes)..., ">")
+        print(io, indent, "<$S", (" $k=\"$v\"" for (k, v) in node.attributes)..., ">")
+
+        isempty(indent) && (indent = "\n")
         indent *= "    "
         for child in node.children
             if child isa AbstractString
-                println(io, (indent * line for line in split(child, r"^"m))...)
+                print(io, (indent * line for line in split(child, r"^"m))...)
             else
                 Base.show(io, child, indent)
             end
