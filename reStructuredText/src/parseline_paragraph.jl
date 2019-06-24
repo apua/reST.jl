@@ -93,14 +93,14 @@ eof(state::State{:literalblock}, context) =
 
 parseline(state::State{:paragraph}, line, context) =
     if isempty(line)
-        @debug "paragraph -- empty"
+        @info "paragraph -- empty"
         @assert length(context[:buffer]) >= 2
         nextliteral, paragraph = buildparagraph(context[:buffer])
         empty!(context[:buffer])
         context[:state] = State(nextliteral ? :literalblock : :body)
         return context, (paragraph,)
     elseif startswith(line, ' ')
-        @debug "paragraph -- indent"
+        @info "paragraph -- indent"
         @assert length(context[:buffer]) >= 2
         nextliteral, paragraph = buildparagraph(context[:buffer])
         empty!(context[:buffer])
@@ -109,7 +109,7 @@ parseline(state::State{:paragraph}, line, context) =
         context, children = parseline(line, context)
         return context, (paragraph, error_indent, children...)
     else
-        @debug "paragraph -- readline"
+        @info "paragraph -- readline"
         @assert length(context[:buffer]) >= 2
         push!(context[:buffer], line)
         return context, ()
@@ -117,11 +117,11 @@ parseline(state::State{:paragraph}, line, context) =
 
 parseline(state::State{:literalblock}, line, context) =
     if isempty(line) || startswith(line, ' ')
-        @debug "literalblock -- readline"
+        @info "literalblock -- readline"
         push!(context[:buffer], line)
         return context, ()
     else
-        @debug "literalblock -- unindented found"
+        @info "literalblock -- unindented found"
         if all(isempty, context[:buffer])
             try_quotedliteralblock
         else
