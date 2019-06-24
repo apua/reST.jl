@@ -57,7 +57,6 @@ function test_literalblock()
     LiteralBlock(xs::String...) = Node(:literal_block, :(xml:space)=>"preserve", xs...)
     ErrorIndent() = Node(:system_message, :type=>"ERROR", Paragraph("Unexpected indentation."))
     warn_unindent(s) = Node(:system_message, :type=>"WARNING", Node(:paragraph, "$s ends without a blank line; unexpected unindent."))
-    warn_literal_notfound() = Node(:system_message, :type=>"WARNING", Node(:paragraph, "Literal block expected; none found."))
 
     @assert parse("AAA\nBBB::\nCCC") == Doc(Paragraph("AAA", "BBB::", "CCC"))
 
@@ -73,6 +72,7 @@ function test_literalblock_corner()
     Doc(xs...) = Node(:document, xs...)
     Paragraph(xs::String...) = Node(:paragraph, xs...)
     LiteralBlock(xs::String...) = Node(:literal_block, :(xml:space)=>"preserve", xs...)
+    warn_literal_notfound() = Node(:system_message, :type=>"WARNING", Node(:paragraph, "Literal block expected; none found."))
 
     # body → line → (correct)
     @assert parse("::\n\n AAA") == Doc(LiteralBlock("AAA"))
@@ -95,12 +95,15 @@ function test_quotedliteralblock()
 
     error_indent() = Node(:system_message, :type=>"ERROR", Node(:paragraph, "Unexpected indentation."))
     error_quote() = Node(:system_message, :type=>"ERROR", Node(:paragraph, "Inconsistent literal block quoting."))
+    warn_literal_notfound() = Node(:system_message, :type=>"WARNING", Node(:paragraph, "Literal block expected; none found."))
 
-    @assert parse("AAA\nBBB::\n\n>111") == Doc(Paragraph("AAA", "BBB:"), LiteralBlock(">111"))
-    @assert parse("AAA\nBBB::\n\n>111\n\nCCC") == Doc(Paragraph("AAA", "BBB:"), LiteralBlock(">111"), Paragraph("CCC"))
-    @assert parse("AAA\nBBB::\n\n>111\n>222\n\nCCC") == Doc(Paragraph("AAA", "BBB:"), LiteralBlock(">111", ">222"), Paragraph("CCC"))
-    @assert parse("AAA\nBBB::\n\n>111\n<222\n\nCCC") == Doc(Paragraph("AAA", "BBB:"), LiteralBlock(">111"), error_quote(), Paragraph("<222"), Paragraph("CCC"))
-    @assert parse("AAA\nBBB::\n\n>111\n >222\n\nCCC") == Doc(Paragraph("AAA", "BBB:"), LiteralBlock(">111"), error_indent(), BlockQuote(Paragraph(">222")), Paragraph("CCC"))
+    @assert parse("AAA::\n\n>111") == Doc(Paragraph("AAA:"), LiteralBlock(">111"))
+    @assert parse("AAA::\n\n>111\n\nBBB") == Doc(Paragraph("AAA:"), LiteralBlock(">111"), Paragraph("BBB"))
+    @assert parse("AAA::\n\n>111\n>222\n\nBBB") == Doc(Paragraph("AAA:"), LiteralBlock(">111", ">222"), Paragraph("BBB"))
+    @assert parse("AAA::\n\n>111\n<222\n\nBBB") == Doc(Paragraph("AAA:"), LiteralBlock(">111"), error_quote(), Paragraph("<222"), Paragraph("BBB"))
+    @assert parse("AAA::\n\n>111\n >222\n\nBBB") == Doc(Paragraph("AAA:"), LiteralBlock(">111"), error_indent(), BlockQuote(Paragraph(">222")), Paragraph("BBB"))
+
+    @assert parse("AAA::\n\n→ 111\n\nBBB") == Doc(Paragraph("AAA:"), warn_literal_notfound(), Paragraph("→ 111"), Paragraph("BBB"))
 end
 
 eof(state::State{:paragraph}, context) =
@@ -131,6 +134,7 @@ eof(state::State{:quotedliteralblock}, context) =
         @assert length(context[:buffer]) > 0
         literalblock = buildquotedliteralblock(context[:buffer])
         empty!(context[:buffer])
+        pop!(context, :quote)
         context[:state] = State(:body)
         context, children = eof(context)
         return context, (literalblock, children...)
@@ -188,19 +192,32 @@ parseline(state::State{:literalblock}, line, context) =
         end
     end
 
+#const NonAlphaNum7Bit = r"[!-/:-@[-`{-~]"
+const NonAlphaNum7Bit = "!\"#\$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
+
 parseline(state::State{:quotedliteralblock}, line, context) =
-    if isempty(line)
+    if ! (:quote in keys(context))
+        @info "QuotedLiteralBlock -- initial_quoted"
+        @assert length(context[:buffer]) == 0
+        if line[1] in NonAlphaNum7Bit
+            context[:quote] = line[1]
+            push!(context[:buffer], line)
+            return context, ()
+        else
+            warn_literal_notfound() = Node(:system_message, :type=>"WARNING", Node(:paragraph, "Literal block expected; none found."))
+            warn = warn_literal_notfound()
+            context[:state] = State(:body)
+            context, children = parseline(line, context)
+            return context, (warn, children...)
+        end
+    elseif isempty(line)
         @info "QuotedLiteralBlock -- blank"
         @assert length(context[:buffer]) > 0
         literalblock = buildquotedliteralblock(context[:buffer])
         empty!(context[:buffer])
+        pop!(context, :quote)
         context[:state] = State(:body)
         return context, (literalblock,)
-    elseif ! (:quote in keys(context))
-        @info "QuotedLiteralBlock -- initial_quoted"
-        context[:quote] = line[1]
-        push!(context[:buffer], line)
-        return context, ()
     elseif startswith(line, context[:quote])
         @info "QuotedLiteralBlock -- quote"
         push!(context[:buffer], line)
@@ -217,6 +234,7 @@ parseline(state::State{:quotedliteralblock}, line, context) =
         end
         literalblock = buildquotedliteralblock(context[:buffer])
         empty!(context[:buffer])
+        pop!(context, :quote)
         context[:state] = State(:body)
         context, children = parseline(line, context)
         return context, (literalblock, error, children...)
