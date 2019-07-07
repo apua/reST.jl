@@ -120,12 +120,19 @@ eof(state::State{:paragraph}, context) =
 eof(state::State{:literalblock}, context) =
     begin
         @info "literalblock.eof"
-        @assert length(context[:buffer]) > 0
-        literalblock = buildliteralblock(context[:buffer])
-        empty!(context[:buffer])
-        context[:state] = State(:body)
-        context, children = eof(context)
-        return context, (literalblock, children...)
+        if isempty(context[:buffer])
+            warn_literal_notfound() = Node(:system_message, :type=>"WARNING", Node(:paragraph, "Literal block expected; none found."))
+            warn = warn_literal_notfound()
+            context[:state] = State(:body)
+            context, children = eof(context)
+            return context, (warn, children...)
+        else
+            literalblock = buildliteralblock(context[:buffer])
+            empty!(context[:buffer])
+            context[:state] = State(:body)
+            context, children = eof(context)
+            return context, (literalblock, children...)
+        end
     end
 
 eof(state::State{:quotedliteralblock}, context) =
