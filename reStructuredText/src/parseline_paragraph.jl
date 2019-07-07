@@ -147,6 +147,17 @@ eof(state::State{:quotedliteralblock}, context) =
         return context, (literalblock, children...)
     end
 
+eof(state::State{:blockquote}, context) =
+    begin
+        @info "blockquote.eof"
+        @assert length(context[:buffer]) > 0
+        blockquote = buildblockquote(context[:buffer])
+        empty!(context[:buffer])
+        context[:state] = State(:body)
+        context, children = eof(context)
+        return context, (blockquote, children...)
+    end
+
 parseline(state::State{:paragraph}, line, context) =
     if isempty(line)
         @info "paragraph -- empty"
@@ -247,6 +258,29 @@ parseline(state::State{:quotedliteralblock}, line, context) =
         return context, (literalblock, error, children...)
     end
 
+parseline(state::State{:blockquote}, line, context) =
+    if isempty(line) || startswith(line, ' ')
+        @info "blockquote -- readline"
+        push!(context[:buffer], line)
+        return context, ()
+    else
+        @info "blockquote -- unindented found"
+        @assert ! all(isempty, context[:buffer])
+        @assert length(context[:buffer]) > 0
+        blockquote = buildblockquote(context[:buffer])
+        blanklinefinish = isempty(context[:buffer][end])
+        warn_unindent(s) = Node(:system_message, :type=>"WARNING",
+                                Node(:paragraph, "$s ends without a blank line; unexpected unindent."))
+        empty!(context[:buffer])
+        context[:state] = State(:body)
+        context, children = parseline(line, context)
+        if blanklinefinish
+            return context, (blockquote, children...)
+        else
+            return context, (blockquote, warn_unindent("Block quote"), children...)
+        end
+    end
+
 function buildparagraph(buffer)
     lastline = buffer[end]
     Paragraph(xs...) = Node{:paragraph}([], [xs...])
@@ -277,4 +311,14 @@ end
 function buildquotedliteralblock(buffer)
     LiteralBlock(xs::String...) = Node(:literal_block, :(xml:space)=>"preserve", xs...)
     LiteralBlock(buffer...)
+end
+
+function buildblockquote(buffer)
+    leadingspacelength(line) = length(line) - length(lstrip(line))
+    indentlength = min(filter(i -> i > 0, map(leadingspacelength, buffer))...)
+    isnonempty(line) = ! isempty(line)
+    first, last = findfirst(isnonempty, buffer), findlast(isnonempty, buffer)
+    #BlockQuote(xs::Node...) = Node(:block_quote, xs...)
+    BlockQuote(xs...) = Node(:block_quote, xs...)
+    BlockQuote((line[indentlength+1:end] for line in buffer[first:last])...)
 end

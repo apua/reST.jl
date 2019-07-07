@@ -27,6 +27,9 @@ parseline(state::State{:body}, line, context) =
         return context, ()
     elseif startswith(line, ' ')
         @info "docutils method -> Body.indent"
+        @assert length(context[:buffer]) == 0
+        context[:state] = State(:blockquote)
+        return parseline(line, context)
     elseif @match r"^[-+*•‣⁃]( +|$)"
         @info "docutils method -> Body.bullet"
     elseif @match r"^((?P<parens>\(([0-9]+|[a-z]|[A-Z]|[ivxlcdm]+|[IVXLCDM]+|#)\))|(?P<rparen>([0-9]+|[a-z]|[A-Z]|[ivxlcdm]+|[IVXLCDM]+|#)\))|(?P<period>([0-9]+|[a-z]|[A-Z]|[ivxlcdm]+|[IVXLCDM]+|#)\.))( +|$)"
