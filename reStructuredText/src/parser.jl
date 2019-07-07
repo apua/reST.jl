@@ -53,4 +53,5 @@ include("parseline_paragraph.jl")
 
 include("quickspec.jl")
 
-macro p(text) :(println($text); parse($text)) end
+#macro p(text) :(println($text); parse($text)) end
+macro p(text) :(println($text); s = parse($text); t = $text; run(`python poc.py "$t"`); print(s)) end
