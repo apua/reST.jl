@@ -22,25 +22,26 @@ const Buffer = Vector{String}
 #const Manipulation = Union{Pair, Nothing}
 const Children = Tuple
 
-function parse(text:: AbstractString, source="")
-    #doc = Node{:document}([], [])
-    doc_children = []
+function parse(text:: AbstractString)
+    return Node{:document}([], nestedparse(preparse(text)))
+end
+
+function nestedparse(lines)
+    all_children = []
     initial_state = State(:body)
 
     context = Context(:state => initial_state, :buffer => Buffer())
-    for line in preparse(text)
-        @info "line: $line"
+    for line in lines
+        @info "(nestedparse) line: $line"
         context, children = parseline(line, context)
         @debug "context: $context"
-        isempty(children) || push!(doc_children, children...)
+        isempty(children) || push!(all_children, children...)
     end
-
-    # TODO: manipulation should be Tuple or Array
 
     context, children = eof(context)
     @debug "context: $context"
-    isempty(children) || push!(doc_children, children...)
-    return Node{:document}([], doc_children)
+    isempty(children) || push!(all_children, children...)
+    return all_children
 end
 
 #eof(context) :: Tuple{Context, Manipulation} = eof(context[:state], context)
