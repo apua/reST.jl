@@ -310,14 +310,17 @@ function buildquotedliteralblock(buffer)
     LiteralBlock(buffer...)
 end
 
-function buildblockquotes(buffer)
+function buildblockquotes(buffer, indentlength=nothing)
     # blockquotes = ((lines) (emptyline)+ (attribution)))* (lines) ((emptyline)+ (attribution))?
 
     # The first line is never empty
     @assert buffer[1] != "" repr(buffer)
 
     leadingspacelength(line) = length(line) - length(lstrip(line))
-    indentlength = min(filter(i -> i > 0, map(leadingspacelength, buffer))...)
+
+    if isnothing(indentlength)
+        indentlength = min(filter(i -> i > 0, map(leadingspacelength, buffer))...)
+    end
 
     attrstart, attrbuffer = splitattribution(buffer, indentlength)
 
@@ -332,41 +335,61 @@ function buildblockquotes(buffer)
         if reststart > length(buffer)
             return (blockquote,)
         else
-            return (blockquote, buildblockquotes(buffer[reststart:end])...)
+            return (blockquote, buildblockquotes(buffer[reststart:end], indentlength)...)
         end
     end
 end
 
 
 function splitattribution(buffer, indentlength)
-    attrstart = length(buffer) + 1
-    attrbuffer = []
-    for i in 3:length(buffer)
+    i = 3
+    while i <= length(buffer)
         # The previous line must be empty
-        buffer[i-1] == "" || continue
+        (buffer[i-1] == "" && buffer[i] != "") || (i += 1; continue)
 
         # The line must match attribution pattern
-        line = buffer[i][indentlength+1:end]
-        m = match(r"^(---?(?!-)|\u2014) *(?=[^ \\n])(.*)$", line)
-        isnothing(m) && continue
+        m = match(r"^(---?(?!-)|\u2014) *(?=[^ \\n])(.*)$", buffer[i][indentlength+1:end])
+        ! isnothing(m) || (i += 2; continue)
 
+        first = m.captures[2]
         # Case 1: end immediately
         if i == length(buffer)
-            attrstart = i; push!(attrbuffer, m.captures[2])
-            break
+            return i, (first,)
+
         # Case 2: empty line next -- find more empty lines
         elseif buffer[i+1] == ""
-            attrstart = i; push!(attrbuffer, m.captures[2])
-            for line in buffer[i+1:end]; isempty(line) || break; push!(attrbuffer, line); end
-            break
+            rest = buffer[i+1:end]
+            x = findfirst(line -> !isempty(line), rest)  # the next nonempty line index
+            blank = rest[isnothing(x) ? (:) : (1:x-1)]
+            return i, (first, blank...)
+
         # Case 3: multi-lines -- the left edges of 2nd and subseq. lines must align
         else
-            edge = leadingspacelength(buffer[i+1])
-            "..."
-            break
+            second = buffer[i+1]
+            leadingspacelength = line -> length(line) - length(lstrip(line))
+            edge = leadingspacelength(second)
+
+            # The edge is the 2nd level indentation
+            edge - indentlength > 0 || (i += 3; continue)
+
+            y = findfirst(line -> isempty(line), buffer[i+2:end])  # the next empty line index
+            subseq, rest = buffer[i+2:end][1:y-1], buffer[i+2:end][y:end]
+
+            # The subseq. lines must align the edge
+            alignedge = line -> leadingspacelength(line) >= edge
+            all(map(alignedge, subseq)) || (i = y+1; continue)
+
+            stripedge = line -> line[edge+1:end]
+            second, subseq = stripedge(second), map(stripedge, subseq)
+
+            x = findfirst(line -> !isempty(line), rest)  # the next nonempty line index
+            blank = rest[isnothing(x) ? (:) : (1:x-1)]
+
+            return i, (first, second, subseq..., blank...)
         end
     end
-    return attrstart, attrbuffer
+
+    return length(buffer)+1, ()
 end
 
 function buildattribution(lines)
