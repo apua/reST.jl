@@ -210,14 +210,11 @@ parseline(state::State{:literalblock}, line, context) =
         end
     end
 
-#const NonAlphaNum7Bit = r"[!-/:-@[-`{-~]"
-const NonAlphaNum7Bit = "!\"#\$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
-
 parseline(state::State{:quotedliteralblock}, line, context) =
     if ! (:quote in keys(context))
         @info "QuotedLiteralBlock -- initial_quoted"
         @assert length(context[:buffer]) == 0
-        if line[1] in NonAlphaNum7Bit
+        if line[1] in "!\"#\$%&'()*+,-./:;<=>?@[\\]^_`{|}~"  # NonAlphaNum7Bit: r"[!-/:-@[-`{-~]"
             context[:quote] = line[1]
             push!(context[:buffer], line)
             return context, ()
