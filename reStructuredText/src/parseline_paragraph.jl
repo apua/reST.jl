@@ -151,11 +151,11 @@ eof(state::State{:blockquote}, context) =
     begin
         @info "blockquote.eof"
         @assert length(context[:buffer]) > 0
-        blockquote = buildblockquote(context[:buffer])
+        blockquotes = buildblockquotes(context[:buffer])
         empty!(context[:buffer])
         context[:state] = State(:body)
         context, children = eof(context)
-        return context, (blockquote, children...)
+        return context, (blockquotes..., children...)
     end
 
 parseline(state::State{:paragraph}, line, context) =
@@ -264,7 +264,7 @@ parseline(state::State{:blockquote}, line, context) =
         @info "blockquote -- unindented found"
         @assert ! all(isempty, context[:buffer])
         @assert length(context[:buffer]) > 0
-        blockquote = buildblockquote(context[:buffer])
+        blockquotes = buildblockquotes(context[:buffer])
         blanklinefinish = isempty(context[:buffer][end])
         warn_unindent(s) = Node(:system_message, :type=>"WARNING",
                                 Node(:paragraph, "$s ends without a blank line; unexpected unindent."))
@@ -272,9 +272,9 @@ parseline(state::State{:blockquote}, line, context) =
         context[:state] = State(:body)
         context, children = parseline(line, context)
         if blanklinefinish
-            return context, (blockquote, children...)
+            return context, (blockquotes..., children...)
         else
-            return context, (blockquote, warn_unindent("Block quote"), children...)
+            return context, (blockquotes..., warn_unindent("Block quote"), children...)
         end
     end
 
@@ -310,11 +310,66 @@ function buildquotedliteralblock(buffer)
     LiteralBlock(buffer...)
 end
 
-function buildblockquote(buffer)
+function buildblockquotes(buffer)
+    # blockquotes = ((lines) (emptyline)+ (attribution)))* (lines) ((emptyline)+ (attribution))?
+
+    # The first line is never empty
+    @assert buffer[1] != "" repr(buffer)
+
     leadingspacelength(line) = length(line) - length(lstrip(line))
     indentlength = min(filter(i -> i > 0, map(leadingspacelength, buffer))...)
-    isnonempty(line) = ! isempty(line)
-    first, last = findfirst(isnonempty, buffer), findlast(isnonempty, buffer)
+
+    attrstart, attrbuffer = splitattribution(buffer, indentlength)
+
     BlockQuote(xs::Node...) = Node(:block_quote, xs...)
-    BlockQuote((nestedparse(line[indentlength+1:end] for line in buffer[first:last]))...)
+    lazyparsed = (nestedparse(buffer[i][indentlength+1:end] for i in 1:attrstart-1))
+    blockquote = BlockQuote(lazyparsed...)
+    if isempty(attrbuffer)
+        return (blockquote,)
+    else
+        push!(blockquote.children, buildattribution(attrbuffer))
+        reststart = attrstart + length(attrbuffer)
+        if reststart > length(buffer)
+            return (blockquote,)
+        else
+            return (blockquote, buildblockquotes(buffer[reststart:end])...)
+        end
+    end
+end
+
+
+function splitattribution(buffer, indentlength)
+    attrstart = length(buffer) + 1
+    attrbuffer = []
+    for i in 3:length(buffer)
+        # The previous line must be empty
+        buffer[i-1] == "" || continue
+
+        # The line must match attribution pattern
+        line = buffer[i][indentlength+1:end]
+        m = match(r"^(---?(?!-)|\u2014) *(?=[^ \\n])(.*)$", line)
+        isnothing(m) && continue
+
+        # Case 1: end immediately
+        if i == length(buffer)
+            attrstart = i; push!(attrbuffer, m.captures[2])
+            break
+        # Case 2: empty line next -- find more empty lines
+        elseif buffer[i+1] == ""
+            attrstart = i; push!(attrbuffer, m.captures[2])
+            for line in buffer[i+1:end]; isempty(line) || break; push!(attrbuffer, line); end
+            break
+        # Case 3: multi-lines -- the left edges of 2nd and subseq. lines must align
+        else
+            edge = leadingspacelength(buffer[i+1])
+            "..."
+            break
+        end
+    end
+    return attrstart, attrbuffer
+end
+
+function buildattribution(lines)
+    Attribution(xs::AbstractString...) = Node(:attribution, xs...)
+    Attribution(lines...)
 end
