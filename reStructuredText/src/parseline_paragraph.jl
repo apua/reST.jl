@@ -310,89 +310,112 @@ function buildquotedliteralblock(buffer)
     LiteralBlock(buffer...)
 end
 
-function buildblockquotes(buffer, indentlength=nothing)
-    # blockquotes = ((lines) (emptyline)+ (attribution)))* (lines) ((emptyline)+ (attribution))?
-
-    # The first line is never empty
-    @assert buffer[1] != "" repr(buffer)
-
-    leadingspacelength(line) = length(line) - length(lstrip(line))
-
-    if isnothing(indentlength)
-        indentlength = min(filter(i -> i > 0, map(leadingspacelength, buffer))...)
-    end
-
-    attrstart, attrbuffer = splitattribution(buffer, indentlength)
+function buildblockquotes(buffer)
+    @assert buffer[1] != ""
 
     BlockQuote(xs::Node...) = Node(:block_quote, xs...)
-    lazyparsed = (nestedparse(buffer[i][indentlength+1:end] for i in 1:attrstart-1))
-    blockquote = BlockQuote(lazyparsed...)
-    if isempty(attrbuffer)
-        return (blockquote,)
-    else
-        push!(blockquote.children, buildattribution(attrbuffer))
-        reststart = attrstart + length(attrbuffer)
-        if reststart > length(buffer)
-            return (blockquote,)
-        else
-            return (blockquote, buildblockquotes(buffer[reststart:end], indentlength)...)
-        end
-    end
-end
-
-
-function splitattribution(buffer, indentlength)
-    i = 3
-    while i <= length(buffer)
-        # The previous line must be empty
-        (buffer[i-1] == "" && buffer[i] != "") || (i += 1; continue)
-
-        # The line must match attribution pattern
-        m = match(r"^(---?(?!-)|\u2014) *(?=[^ \\n])(.*)$", buffer[i][indentlength+1:end])
-        ! isnothing(m) || (i += 2; continue)
-
-        first = m.captures[2]
-        # Case 1: end immediately
-        if i == length(buffer)
-            return i, (first,)
-
-        # Case 2: empty line next -- find more empty lines
-        elseif buffer[i+1] == ""
-            rest = buffer[i+1:end]
-            x = findfirst(line -> !isempty(line), rest)  # the next nonempty line index
-            blank = rest[isnothing(x) ? (:) : (1:x-1)]
-            return i, (first, blank...)
-
-        # Case 3: multi-lines -- the left edges of 2nd and subseq. lines must align
-        else
-            second = buffer[i+1]
-            leadingspacelength = line -> length(line) - length(lstrip(line))
-            edge = leadingspacelength(second)
-
-            # The edge is the 2nd level indentation
-            edge - indentlength > 0 || (i += 3; continue)
-
-            y = findfirst(line -> isempty(line), buffer[i+2:end])  # the next empty line index
-            subseq, rest = buffer[i+2:end][1:y-1], buffer[i+2:end][y:end]
-
-            # The subseq. lines must align the edge
-            alignedge = line -> leadingspacelength(line) >= edge
-            all(map(alignedge, subseq)) || (i = y+1; continue)
-
-            stripedge = line -> line[edge+1:end]
-            second, subseq = stripedge(second), map(stripedge, subseq)
-
-            x = findfirst(line -> !isempty(line), rest)  # the next nonempty line index
-            blank = rest[isnothing(x) ? (:) : (1:x-1)]
-
-            return i, (first, second, subseq..., blank...)
-        end
-    end
-
-    return length(buffer)+1, ()
-end
-
-function buildattribution(lines)
     Attribution(xs::AbstractString...) = Node(:attribution, xs...)
-    Attribution(lines...)
+
+    leadingspacelength(line) = length(line) - length(lstrip(line))
+    indentlength = min(map(leadingspacelength, filter(!isempty, buffer))...)
+    dedent(lines) = map(line -> line[indent+1:end], lines)
+    lines = [line[indentlength+1:end] for line in buffer]
+
+    blockquotes, i = [], 1
+    while i <= length(lines)
+        result = splitattribution(lines, bqstart=i)
+        isnothing(result) && return push!(blockquotes, BlockQuote(nestedparse(lines[i:end])...))
+        bqstart, bqend, attrbuffer, i = result
+        push!(blockquotes, BlockQuote(nestedparse(lines[bqstart:bqend])..., Attribution(attrbuffer...)))
+    end
+    return blockquotes
+end
+
+"""
+```
+julia> splitattribution([], bqstart=1)
+
+julia> splitattribution([""], bqstart=1)
+
+julia> splitattribution(["AAA", "", "-- Apua"], bqstart=1)
+(1, 2, SubString{String}["Apua"], 4)
+
+julia> splitattribution(["AAA", "", "-- Apua", ""], bqstart=1)
+(1, 2, SubString{String}["Apua"], 5)
+
+julia> splitattribution(["AAA", "", "-- Apua", "BBB", "CCC"], bqstart=1)
+(1, 2, AbstractString["Apua", "BBB", "CCC"], 6)
+
+julia> splitattribution(["AAA", "", "-- Apua", " BBB", " CCC"], bqstart=1)
+(1, 2, AbstractString["Apua", "BBB", "CCC"], 6)
+
+julia> splitattribution(["AAA", "", "-- Apua", " BBB", "CCC"], bqstart=1)
+
+julia> splitattribution(["AAA", "", "-- Apua", " BBB", "CCC", "", "--- Ailin"], bqstart=1)
+(1, 6, SubString{String}["Ailin"], 8)
+```
+"""
+function splitattribution(lines; bqstart)
+    i = bqstart + 2
+    while i <= length(lines)
+        !(lines[i-1] == "" && lines[i] != "") && (i += 1; continue)
+
+        m = match(r"^(---?(?!-)|\u2014) *(?=[^ \\n])(.*)$", lines[i])
+        isnothing(m) && (i += 2; continue)
+
+        attrbuffer, lastindex = checkattribution(m.captures[2], lines, start=i)
+        isnothing(attrbuffer) && (i = lastindex + 2; continue)
+
+        k = findfirst(!isempty, lines[lastindex+1:end])
+        r = isnothing(k) ? length(lines) + 1 : lastindex + k
+
+        return bqstart, i-1, attrbuffer, r
+    end
+end
+
+"""
+Check whether it is an attribution or not.
+Return the attribution buffer and last checked index.
+
+```
+julia> checkattribution("Apua", ["-- Apua", ""], start=1)
+(["Apua"], 2)
+
+julia> checkattribution("Apua", ["-- Apua", "", ""], start=1)
+(["Apua"], 2)
+
+julia> checkattribution("Apua", ["-- Apua", "", "AAA"], start=1)
+(["Apua"], 2)
+
+julia> checkattribution("Apua", ["-- Apua", "BBB", "AAA"], start=1)
+(["Apua", "BBB", "AAA"], 3)
+
+julia> checkattribution("Apua", ["-- Apua", "BBB", "AAA", ""], start=1)
+(["Apua", "BBB", "AAA"], 3)
+
+julia> checkattribution("Apua", ["-- Apua", "  BBB", "  AAA", ""], start=1)
+(["Apua", "BBB", "AAA"], 3)
+
+julia> checkattribution("Apua", ["-- Apua", "  BBB", " AAA", ""], start=1)
+(nothing, 3)
+
+julia> checkattribution("Apua", ["-- Apua", " BBB", "  AAA", ""], start=1)
+(nothing, 3)
+
+julia> checkattribution("Apua", ["-- Apua", " BBB", "  AAA", "CCC", ""], start=1)
+(nothing, 3)
+```
+"""
+function checkattribution(first, lines; start)
+    leadingspacelength(line) = length(line) - length(lstrip(line))
+    start == length(lines) && return [first], start
+    lines[start+1] == "" && return [first], start+1
+    indent = leadingspacelength(lines[start+1])
+    dedent(lines) = map(line -> line[indent+1:end], lines)
+    for i in start+2:length(lines)
+        line = lines[i]
+        isempty(line) && return [[first]; dedent(lines[start+1:i-1])], i-1
+        leadingspacelength(line) != indent && return nothing, i
+    end
+    return [[first]; dedent(lines[start+1:end])], length(lines)
 end
