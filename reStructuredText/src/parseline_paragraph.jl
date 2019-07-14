@@ -211,7 +211,7 @@ parseline(state::State{:literalblock}, line, context) =
     end
 
 parseline(state::State{:quotedliteralblock}, line, context) =
-    if ! (:quote in keys(context))
+    if !(:quote in keys(context))
         @info "QuotedLiteralBlock -- initial_quoted"
         @assert length(context[:buffer]) == 0
         if line[1] in "!\"#\$%&'()*+,-./:;<=>?@[\\]^_`{|}~"  # NonAlphaNum7Bit: r"[!-/:-@[-`{-~]"
@@ -262,7 +262,7 @@ parseline(state::State{:blockquote}, line, context) =
         return context, ()
     else
         @info "blockquote -- unindented found"
-        @assert ! all(isempty, context[:buffer])
+        @assert !all(isempty, context[:buffer])
         @assert length(context[:buffer]) > 0
         blockquotes = buildblockquotes(context[:buffer])
         blanklinefinish = isempty(context[:buffer][end])
@@ -299,8 +299,7 @@ end
 function buildliteralblock(buffer)
     leadingspacelength(line) = length(line) - length(lstrip(line))
     indentlength = min(filter(i -> i > 0, map(leadingspacelength, buffer))...)
-    isnonempty(line) = ! isempty(line)
-    first, last = findfirst(isnonempty, buffer), findlast(isnonempty, buffer)
+    first, last = findfirst(!isempty, buffer), findlast(!isempty, buffer)
     LiteralBlock(xs::String...) = Node(:literal_block, :(xml:space)=>"preserve", xs...)
     LiteralBlock((line[indentlength+1:end] for line in buffer[first:last])...)
 end
