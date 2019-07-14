@@ -298,7 +298,7 @@ end
 
 function buildliteralblock(buffer)
     leadingspacelength(line) = length(line) - length(lstrip(line))
-    indentlength = min(filter(i -> i > 0, map(leadingspacelength, buffer))...)
+    indentlength = minimum(map(leadingspacelength, filter(!isempty, buffer)))
     first, last = findfirst(!isempty, buffer), findlast(!isempty, buffer)
     LiteralBlock(xs::String...) = Node(:literal_block, :(xml:space)=>"preserve", xs...)
     LiteralBlock((line[indentlength+1:end] for line in buffer[first:last])...)
@@ -316,7 +316,7 @@ function buildblockquotes(buffer)
     Attribution(xs::AbstractString...) = Node(:attribution, xs...)
 
     leadingspacelength(line) = length(line) - length(lstrip(line))
-    indentlength = min(map(leadingspacelength, filter(!isempty, buffer))...)
+    indentlength = minimum(map(leadingspacelength, filter(!isempty, buffer)))
     dedent(lines) = map(line -> line[indent+1:end], lines)
     lines = [line[indentlength+1:end] for line in buffer]
 
